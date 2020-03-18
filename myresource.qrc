@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/"/>
+    <qresource prefix="/Images">
+        <file>key.ico</file>
+        <file>background.jpg</file>
+        <file>button.png</file>
+        <file>help_2.png</file>
+    </qresource>
+</RCC>
