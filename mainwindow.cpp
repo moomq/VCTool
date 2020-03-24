@@ -55,12 +55,12 @@ void MainWindow::on_btn_parse_clicked()
         break;
 
     case 0xc6:
-        if(TextSize==164||TextSize==67) dealC6(Sldata);
+        if(TextSize==164||TextSize==67||TextSize==159) dealC6(Sldata);
         else Error_Str="C6 指令长度错误";
         break;
 
     case 0xc7:
-        if(TextSize==14) dealC7(Sldata);
+        if(TextSize==14||TextSize==138) dealC7(Sldata);
         else Error_Str="C7 指令长度错误";
         break;
 
@@ -112,7 +112,7 @@ void MainWindow::on_btn_parse_clicked()
         break;
 
     case 0xb4:
-        if(TextSize==284||TextSize==193) dealB4(Sldata);
+        if(TextSize==284||TextSize==193||TextSize==74||TextSize==171) dealB4(Sldata);
         else Error_Str="B4 帧长度错误";
         break;
 
@@ -153,6 +153,7 @@ void MainWindow::on_btn_parse_clicked()
         break;
 
     default:
+        Error_Str="输入错误！！！";
         break;
     }
     if(Error_Str==""){
@@ -232,11 +233,17 @@ void MainWindow::dealC2(QStringList Sl_data)
     output_data.append(QString("OBUID/CPC-MAC: %1 (车载单元 MAC 地址)\r\n").arg(obuidStr));
     if(c2_cmdstruct.stoptype==0x01)
     {
-        output_data.append(QString("stoptype: 0x01 (结束交易，重新搜索车载单元)\r\n").arg(c2_cmdstruct.stoptype));
+        output_data.append("stoptype: 0x01 (结束交易，重新搜索车载单元)\r\n");
     }
     else if(c2_cmdstruct.stoptype==0x02)
     {
-        output_data.append(QString("stoptype: 0x02 (重新发送当前帧)\r\n").arg(c2_cmdstruct.stoptype));
+        output_data.append("stoptype: 0x02 (重新发送当前帧)\r\n");
+    }
+    else if(c2_cmdstruct.stoptype==0x03){
+        output_data.append("stoptype: 0x03 (冻结当前 OBUID/CPC-MAC 的车载单元)\r\n");
+    }
+    else{
+        output_data.append(QString("stoptype: %1 (其他值，保留)\r\n").arg(c2_cmdstruct.stoptype));
     }
 
     if(Sl_data.size()==10)
@@ -289,7 +296,7 @@ void MainWindow::dealC6(QStringList Sl_data)
     output_data.append(QString("OBUID/CPCMAC: %1 (车载单元 MAC 地址)\r\n").arg(obuidstr));
     output_data.append(QString("OBUDivFactor/CPCDivFacto: %1 (车载单元一级分散因子)\r\n").arg(tempstr));
 
-    if(sldatasize==164){
+    if(sldatasize==164||sldatasize==159||sldatasize==174){
         if(c6_cmdstruct.OBUTradeType==0x00){
             output_data.append("OBUTradeType: 0x00 (双片式 OBU更新 EF04 文件+复合消费,对于单片式 OBU、CPC 卡本字段无效)\r\n");
         }
@@ -307,15 +314,33 @@ void MainWindow::dealC6(QStringList Sl_data)
         for(qint8 i=25;i<68;i++) {
             StationStr+=Sl_data.at(i);
         }
-        output_data.append("Station: "+StationStr+" (双片式OBU： 0019 文件43字节；单片式OBU： ETC门架编号3字节+4字节UNIXTime，剩余字节补齐00H；CPC卡： DF01\EF04文件中本省计费信息10字节，剩余字节补齐00H)"+"\r\n");
+        if(sldatasize==174){
+            output_data.append("Station: "+StationStr+" (双片式OBU： 0019 文件43字节；单片式OBU：EF07文件前43字节"+"\r\n");
+        }
+        else{
+            output_data.append("Station: "+StationStr+" (双片式OBU： 0019 文件43字节；单片式OBU：ETC门架编号3字节+4字节UNIXTime，剩余字节补齐00H；CPC卡： DF01\\EF04文件中本省计费信息10字节，剩余字节补齐00H)"+"\r\n");
+        }
         for(quint8 i=68;i<159;i++) {
             EF04InfoStr+=Sl_data.at(i);
         }
-        output_data.append("EF04Info: "+EF04InfoStr+" (双片式OBU： EF04文件315-405字节内容；对于单片式OBU和CPC卡本字段无效，填充00H)"+"\r\n");
-        for(quint8 i=159;i<164;i++) {
-            EF04Info2Str+=Sl_data.at(i);
+        if(sldatasize==174){
+            output_data.append("EF04Info: "+EF04InfoStr+" (双片式OBU： EF04文件315-405字节内容；单片式OBU：EF07文件第44-103字节，剩余字节填充00H)"+"\r\n");
         }
-        output_data.append("EF04Info2: "+EF04Info2Str+" (双片式OBU：1字节偏移值N + 4字节EF04文件信息；单片式OBU和CPC卡本字段无效，填充00H)"+"\r\n");
+        else{
+            output_data.append("EF04Info: "+EF04InfoStr+" (双片式OBU： EF04文件315-405字节内容；对于单片式OBU和CPC卡本字段无效，填充00H)"+"\r\n");
+        }
+        if(sldatasize==164){
+            for(quint8 i=159;i<164;i++) {
+                EF04Info2Str+=Sl_data.at(i);
+            }
+            output_data.append("EF04Info2: "+EF04Info2Str+" (双片式OBU：1字节偏移值N + 4字节EF04文件信息；单片式OBU和CPC卡本字段无效，填充00H)"+"\r\n");
+        }
+        else if(sldatasize==174){
+            for(quint8 i=159;i<174;i++) {
+                EF04Info2Str+=Sl_data.at(i);
+            }
+            output_data.append("EF04Info2: "+EF04Info2Str+" (双片式OBU：1字节偏移值N + 4字节EF04文件信息,剩余10字节补齐00H。单片式OBU：1字节偏移值N + 14字节EF07文件信息，本字段N>0时启用，N取值范围为0-15.)"+"\r\n");
+        }
     }
     else if(sldatasize==67){
         output_data.append("ConsumeMoney: "+Sl_data.at(13)+Sl_data.at(14)+Sl_data.at(15)+Sl_data.at(16)+" (本路段扣款/计费金额（高字节在前，单位分))"+"\r\n");
@@ -333,6 +358,8 @@ void MainWindow::dealC7(QStringList Sl_data)
     C7_CMD_STRTYPE c7_cmdstruct;
     QString tempstr;
     QString cpc_macstr;
+    QString MTCIfo1str;
+    QString MTCIfo2str;
     output_data.clear();
     cpc_macstr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     for(qint8 i=5;i<13;i++) {
@@ -343,15 +370,27 @@ void MainWindow::dealC7(QStringList Sl_data)
     output_data.append("CmdType: C7 (更新过站信息指令)\r\n");
     output_data.append(QString("cpc_mac: %1 (CPC 卡 MAC 地址 0x%2)\r\n").arg(cpc_macstr));
     output_data.append(QString("CPCDivFactor: %1 (CPC 卡一级分散因子 0x%2)\r\n").arg(c7_cmdstruct.CPCDivFactor).arg(tempstr));
-    if(c7_cmdstruct.UpdateType==0x01){
-        output_data.append("UpdateType: 01H (仅清空过站信息)\r\n");
+    if(Sl_data.size()==14){
+        if(c7_cmdstruct.UpdateType==0x01){
+            output_data.append("UpdateType: 01H (仅清空过站信息)\r\n");
+        }
+        else if(c7_cmdstruct.UpdateType==0x02){
+            output_data.append("UpdateType: 02H (读取所有过站信息后再清空过站信息)\r\n");
+        }
+        else
+        {
+            output_data.append(QString("UpdateType: %1 (非法数值)\r\n").arg(c7_cmdstruct.UpdateType));
+        }
     }
-    else if(c7_cmdstruct.UpdateType==0x02){
-        output_data.append("UpdateType: 02H (读取所有过站信息后再清空过站信息)\r\n");
-    }
-    else
-    {
-        output_data.append(QString("UpdateType: %1 (非法数值)\r\n").arg(c7_cmdstruct.UpdateType));
+    else if(Sl_data.size()==138){
+        for(quint8 i=13;i<114;i++) {
+            MTCIfo1str+=Sl_data.at(i);
+        }
+        output_data.append("MTCIfo1: "+MTCIfo1str+" (CPC 卡过站信息文件更新内容（前 101 字节）)");
+        for(quint8 i=114;i<138;i++) {
+            MTCIfo2str+=Sl_data.at(i);
+        }
+        output_data.append("MTCIfo1: "+MTCIfo2str+" (1 字节偏移值 N +23 字节 CPC 卡计费信息文件更新内容。表示偏移(N-1)*23 字节更新 23 字节 CPC 卡计费信息)");
     }
 }
 
@@ -731,12 +770,12 @@ void MainWindow::dealB4(QStringList Sl_data)
         output_data.append(QString("VehicleInfo: %1 (车辆信息文件 79 字节)\r\n").arg(VehicleInfostr));
         output_data.append(QString("CardRestMoney: %1 (电子钱包文件,单片式 OBU 填充 00H,无数据返回时填充00H)\r\n").arg(CardRestMoneystr));
         if(datasize==284){
-            output_data.append(QString("EF04Info: %1 (双片式OBU EF04文件315-405)\r\n").arg(EF04Infostr));
+            output_data.append(QString("EF04Info: %1 (双片式OBU EF04文件315-405，单片式 OBU：EF07文件前43 字节+后 7 字节补00H;无数据返回时填充 00H)\r\n").arg(EF04Infostr));
         }
-        output_data.append(QString("IssuerInfo: %1 (双片式OBU EF04文件315-405)\r\n").arg(IssuerInfostr));
+        output_data.append(QString("IssuerInfo: %1 (卡片发行信息（0015 文件） 43 字节+后 7 字节补00H；单片式 OBU：EF07文件前 43字节+后7字节补00H，无数据返回时填充 00H)\r\n").arg(IssuerInfostr));
         output_data.append(QString("LastStation: %1 (出入口信息 双片式OBU为0019文件,单片式OBU为DF01\\EF02文件,无数据返回时填充00H)\r\n").arg(LastStationstr));
     }
-    else if(datasize==64){
+    else if(datasize==74||datasize==171){
         temp=15;
         for(offset=temp;offset<temp+43;offset++){
             cpcLastStationstr=cpcLastStationstr.append(Sl_data.at(offset));
@@ -748,8 +787,17 @@ void MainWindow::dealB4(QStringList Sl_data)
             EF04CostMoneyInfostr=EF04CostMoneyInfostr.append(Sl_data.at(offset));
         }
         output_data.append(QString("LastStation: %1 (CPC 卡出入口信息)\r\n").arg(cpcLastStationstr));
-        output_data.append(QString("EF02过站信息: %1 (CPC卡DF01\EF02文件前4字节)\r\n").arg(EF02StationInfostr));
-        output_data.append(QString("EF04计费信息: %1 (CPC卡DF01\EF04文件中本省计费信息10字节)\r\n").arg(EF04CostMoneyInfostr));
+        if(datasize==74){
+            output_data.append(QString("EF02过站信息: %1 (CPC卡DF01\EF02文件前4字节)\r\n").arg(EF02StationInfostr));
+            output_data.append(QString("EF04计费信息: %1 (CPC卡DF01\EF04文件中本省计费信息10字节)\r\n").arg(EF04CostMoneyInfostr));
+        }
+        else{
+            QString MTCInfoStr;
+            for(int i=58;i<159;i++){
+                MTCInfoStr=MTCInfoStr.append(Sl_data.at(i));
+            }
+            output_data.append(QString("MTCInfo: %1 (CPC卡DF01\EF02文件前101字节。无数据返回时，填充00H)\r\n").arg(MTCInfoStr));
+        }
     }
     else{
         qDebug()<<"数据长度错误";
@@ -777,13 +825,13 @@ void MainWindow::dealB5(QStringList Sl_data)
     if(Sl_data.size()==46){
         output_data.append(QString("AlgFlag: %1H (算法标识,3DES算法00H,SM4算法04H)\r\n").arg(Sl_data.at(28)));
         output_data.append(QString("KeyVersion: %1H (双片式OBU:消费密钥版本号 单片式OBU:填写00H)\r\n").arg(Sl_data.at(29)));
-        output_data.append("TAC: "+Sl_data.at(30)+Sl_data.at(31)+Sl_data.at(32)+Sl_data.at(33)+" (交易认证码)\r\n");
+        output_data.append("TAC: "+Sl_data.at(30)+Sl_data.at(31)+Sl_data.at(32)+Sl_data.at(33)+" (交易认证码,单片式 OBU：填写00H)\r\n");
         output_data.append("ICCPayserial: "+Sl_data.at(34)+Sl_data.at(35)+" (CPU 用户卡脱机交易序号单片式OBU填充00H)\r\n");
-        output_data.append("PSAMTransSerial: "+Sl_data.at(36)+Sl_data.at(37)+Sl_data.at(38)+Sl_data.at(39)+" (PSAM 卡终端交易序号)\r\n");
+        output_data.append("PSAMTransSerial: "+Sl_data.at(36)+Sl_data.at(37)+Sl_data.at(38)+Sl_data.at(39)+" (PSAM 卡终端交易序号,单片式OBU填充 00H，双片式OBU不进行复合消费操作时填写00H)\r\n");
         QString CardBalancestr=Sl_data.at(40)+Sl_data.at(41)+Sl_data.at(42)+Sl_data.at(43);
         output_data.append("CardBalance: "+CardBalancestr+" (交易后余额,单片式OBU填充 00H)\r\n");
     }
-    else if(Sl_data.size()==32){
+    else if(Sl_data.size()==30){
 //CPC 卡该数据域不存在
     }
     else{
@@ -1057,12 +1105,15 @@ QString MainWindow::dealB4ErrorCode(quint8 ErrorCode)
     QString ErrorCodeStr;
     switch (ErrorCode) {
     case 0x00:
-        ErrorCodeStr="无 DSRC 数据返回（超时）";
+        ErrorCodeStr="本次交易成功执行，后续各项信息均合法有效";
         break;
     case 0x01:
-        ErrorCodeStr="上行 DSRC 数据解码错误";
+        ErrorCodeStr="无 DSRC 数据返回（超时）";
         break;
     case 0x02:
+        ErrorCodeStr="上行 DSRC 数据解码错误";
+        break;
+    case 0x03:
         ErrorCodeStr="路侧单元天线头连接失败（由路侧单元自行确认，影响本门架正常交易时赋值）";
         break;
     case 0x04:
@@ -1087,10 +1138,10 @@ QString MainWindow::dealB4ErrorCode(quint8 ErrorCode)
         ErrorCodeStr="OBU 读取入/出口信息文件返回数据非 9000H（单片式 OBU）";
         break;
     case 0x0B:
-        ErrorCodeStr="CPC 卡读取 DF01\EF02 文件返回数据非 9000H";
+        ErrorCodeStr="CPC 卡读取 DF01\\EF02 文件返回数据非 9000H";
         break;
     case 0x0C:
-        ErrorCodeStr="CPC 卡读取 DF01\EF04 文件返回数据非 9000H";
+        ErrorCodeStr="CPC 卡读取 DF01\\EF04 文件返回数据非 9000H";
         break;
     case 0x0D:
         ErrorCodeStr="CPC 卡外部认证失败（PSAM 返回）";
@@ -1115,6 +1166,83 @@ QString MainWindow::dealB4ErrorCode(quint8 ErrorCode)
         break;
     case 0x15:
         ErrorCodeStr="标签有卡、 读取 ETC 卡片文件失败，选择/读取 EF04 文件成功（双片式 OBU）";
+        break;
+    case 0xFF:
+        ErrorCodeStr="测试数据帧";
+        break;
+    default:
+        ErrorCodeStr="非法数值";
+        break;
+    }
+    return ErrorCodeStr;
+}
+
+QString MainWindow::dealB4ErrorCode35(quint8 ErrorCode)
+{
+    QString ErrorCodeStr;
+    switch (ErrorCode) {
+    case 0x00:
+        ErrorCodeStr="本次交易成功执行，后续各项信息均合法有效";
+        break;
+    case 0x01:
+        ErrorCodeStr="无 DSRC 数据返回（超时）";
+        break;
+    case 0x02:
+        ErrorCodeStr="上行 DSRC 数据解码错误";
+        break;
+    case 0x03:
+        ErrorCodeStr="路侧单元天线头连接失败（由路侧单元自行确认，影响本门架正常交易时赋值）";
+        break;
+    case 0x04:
+        ErrorCodeStr="弃用， 保留";
+        break;
+    case 0x05:
+        ErrorCodeStr="解密 双片式OBU 车辆信息失败（PSAM 卡解密失败）";
+        break;
+    case 0x06:
+        ErrorCodeStr="解密 双片式OBU 车辆信息失败（校验码对比失败）";
+        break;
+    case 0x07:
+        ErrorCodeStr="单片式 OBU： 读取车辆信息失败";
+        break;
+    case 0x08:
+        ErrorCodeStr="单片式 OBU： 读取 DF01\\EF02 文件失败";
+        break;
+    case 0x09:
+        ErrorCodeStr="单片式 OBU： 读取随机数失败";
+        break;
+    case 0x0A:
+        ErrorCodeStr="单片式 OBU： 读取 DF01\\EF07 文件失败";
+        break;
+    case 0x0B:
+        ErrorCodeStr="CPC 卡： 读取 DF01\\EF02 文件失败";
+        break;
+    case 0x0C:
+        ErrorCodeStr="弃用，保留";
+        break;
+    case 0x0D:
+        ErrorCodeStr="外部认证码计算失败（PSAM 返回";
+        break;
+    case 0x0E:
+        ErrorCodeStr="外部认证失败（CPC 卡/单片式 OBU 返回）";
+        break;
+    case 0x10:
+        ErrorCodeStr="弃用，保留";
+        break;
+    case 0x11:
+        ErrorCodeStr="双片式 OBU： 标签无卡、选择/读取 EF04 文件成功";
+        break;
+    case 0x12:
+        ErrorCodeStr="双片式 OBU： 标签无卡、 选择/读取 EF04 文件失败";
+        break;
+    case 0x13:
+        ErrorCodeStr="双片式 OBU： 标签有卡、 读取 ETC 卡片文件成功，选择/读取 EF04 文件失败";
+        break;
+    case 0x14:
+        ErrorCodeStr="双片式 OBU： 标签有卡、 读取 ETC 卡片文件失败， 选择/读取 EF04 文件失败";
+        break;
+    case 0x15:
+        ErrorCodeStr="双片式 OBU： 标签有卡、 读取 ETC 卡片文件失败，选择/读取 EF04 文件成功";
         break;
     case 0xFF:
         ErrorCodeStr="测试数据帧";
@@ -1330,9 +1458,9 @@ QString MainWindow::dealRSUControlStatus(quint8 RSUControlStatus)
 
 void MainWindow::on_pushButton_clicked()
 {
-    QString Vctitle="VC帧解析工具 V0.0.1  Made by Alan";
+    QString Vctitle="VC帧解析工具 V0.0.2  Made by Alan";
     QString helpstr="解析格式：\r\nCX帧如：C13ECE2F41BDADCBD5BDADCBD5      BX帧如：\r\nFFFF00020000001CB100110102010001020000020100010200000202010000160200001670CF\r\n";
-    helpstr.append("支持ETC门架系统PC-RSU接口 V3.4 V3.1版协议\r\n\r\n");
+    helpstr.append("支持ETC门架系统PC-RSU接口 V3.5 V3.4 V3.1版协议\r\n\r\n");
     helpstr.append("Copyright 2020-2029 The CGTECH Company Ltd. All rights reserved. www.cgtech.com\r\n");
     helpstr.append("The program is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.");
     QMessageBox::about(this, Vctitle, helpstr);

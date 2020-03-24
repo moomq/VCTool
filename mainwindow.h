@@ -53,6 +53,7 @@ private:
     QString dealB0StatusCode(quint8 Status);
     QString dealB2StatusCode(quint8 DeviceType, quint8 Status);
     QString dealB4ErrorCode(quint8 ErrorCode);
+    QString dealB4ErrorCode35(quint8 ErrorCode);
     QString dealB5ErrorCode(quint8 ErrorCode);
     QString dealB7ErrorCode(quint8 ErrorCode);
     QString dealB8ErrorCode(quint8 ErrorCode);
