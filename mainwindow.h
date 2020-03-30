@@ -49,6 +49,9 @@ private:
     void dealEA(QStringList Sl_data);
     void dealEB(QStringList Sl_data);
     void dealEC(QStringList Sl_data);
+
+    void dealcheck(QStringList Sl_data);
+    void dealcheck2(QString input_data);
     
     QString dealB0StatusCode(quint8 Status);
     QString dealB2StatusCode(quint8 DeviceType, quint8 Status);
@@ -61,6 +64,7 @@ private:
     QString dealBBErrorCode(quint8 ErrorCode);
 
     QString dealRSUControlStatus(quint8 RSUControlStatus);
+    QString dealRSUPSAMStatus(quint8 PsamStatus);
     
 };
 // 初始化指令

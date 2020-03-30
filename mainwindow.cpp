@@ -28,10 +28,17 @@ void MainWindow::on_btn_parse_clicked()
         input_data.insert(i," ");
     }
     QStringList Sldata=input_data.split(" ");
+//    QList Sldata=input_data.toLatin1().split(" ");
     uint cmdtype=Sldata.at(0).toInt(NULL,16);
     uint TextSize=Sldata.size();
     if(cmdtype==0xff){
         cmdtype=Sldata.at(8).toInt(NULL,16);
+    }
+    else if(cmdtype==0x04&&Sldata.at(20)=="5F"&&Sldata.at(21)=="1B"){
+        dealcheck(Sldata);
+        ui->textEdit_out->setPlainText(output_data);
+        ui->textEdit_out->setStyleSheet("font-size : 20px");
+        return;
     }
     switch (cmdtype) {
     case 0xc0:
@@ -994,6 +1001,91 @@ void MainWindow::dealEC(QStringList Sl_data)
     output_data.append("BeaconID: "+Sl_data.at(11)+Sl_data.at(12)+Sl_data.at(13)+Sl_data.at(14)+" (当前 BeaconID 值)\r\n");
 }
 
+void MainWindow::dealcheck(QStringList Sl_data)
+{
+    int offset = 0;
+    int temp = 0;
+    quint8 psam1status;
+    quint8 psam2status;
+    output_data.clear();
+    QByteArray VersionArr;
+    QByteArray ant_versionArr;
+    QByteArray datestr;
+    output_data.append(QString("MAINTAIN_CHECK_RS: %1H (维护指令)\r\n").arg(Sl_data.at(offset++)));
+    output_data.append(QString("ARM编号: %1H\r\n").arg(Sl_data.at(offset++)));
+    temp=offset;
+    for(;offset<temp+10;offset++){
+        VersionArr=VersionArr.append(Sl_data.at(offset));
+    }
+    QByteArray text = QByteArray::fromHex(VersionArr);
+    output_data.append(QString("版本号: %1\r\n").arg(QString(text)));
+    output_data.append(QString("内网IP: %1.%2.%3.%4\r\n").arg(Sl_data.at(offset).toUInt(NULL,16)).arg(Sl_data.at(offset+1).toUInt(NULL,16)).arg(Sl_data.at(offset+2).toUInt(NULL,16)).arg(Sl_data.at(offset+3).toUInt(NULL,16)));
+    offset+=4;
+    output_data.append(QString("外网IP: %1.%2.%3.%4\r\n").arg(Sl_data.at(offset).toUInt(NULL,16)).arg(Sl_data.at(offset+1).toUInt(NULL,16)).arg(Sl_data.at(offset+2).toUInt(NULL,16)).arg(Sl_data.at(offset+3).toUInt(NULL,16)));
+    offset+=4;
+    output_data.append(QString("端口: %1%2\r\n").arg(Sl_data.at(offset).toUInt(NULL,16)).arg(Sl_data.at(offset+1).toUInt(NULL,16)));
+    offset+=2;
+    output_data.append(QString("子网掩码: %1.%2.%3.%4\r\n").arg(Sl_data.at(offset).toUInt(NULL,16)).arg(Sl_data.at(offset+1).toUInt(NULL,16)).arg(Sl_data.at(offset+2).toUInt(NULL,16)).arg(Sl_data.at(offset+3).toUInt(NULL,16)));
+    offset+=4;
+    output_data.append(QString("网关: %1.%2.%3.%4\r\n").arg(Sl_data.at(offset).toUInt(NULL,16)).arg(Sl_data.at(offset+1).toUInt(NULL,16)).arg(Sl_data.at(offset+2).toUInt(NULL,16)).arg(Sl_data.at(offset+3).toUInt(NULL,16)));
+    offset+=4;
+    output_data.append(QString("硬盘使用情况: %1\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    output_data.append(QString("信道号: %1\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    output_data.append(QString("bst间隔: %1\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    output_data.append(QString("分时总长度: %1\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    output_data.append(QString("功率: %1\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    output_data.append(QString("PCI信息: %1 (是否支持PCI，0：不支持，1：支持)\r\n").arg((Sl_data.at(offset++).toUInt(NULL,16))));
+    quint8 AntaNum=Sl_data.at(offset++).toUInt(NULL,16);
+    output_data.append(QString("天线数量: %1\r\n\r\n").arg(AntaNum));
+    for(quint8 i=0;i<AntaNum;i++){
+        for(quint8 j=0;j<10;j++){
+            ant_versionArr+=Sl_data.at(offset++);
+        }
+        QByteArray text2 = QByteArray::fromHex(ant_versionArr);
+        output_data.append("天线盒基础信息如下:\r\n");
+        output_data.append(QString("天线%1版本: %2\r\n").arg(i).arg(QString(text2)));
+        ant_versionArr.clear();
+        output_data.append(QString("车道号: %1\r\n").arg((Sl_data.at(offset++)).toUInt(NULL,16)));
+        output_data.append(QString("分时次序: %1\r\n").arg((Sl_data.at(offset++)).toUInt(NULL,16)));
+        output_data.append(QString("功率: %1\r\n").arg((Sl_data.at(offset++)).toUInt(NULL,16)));
+        output_data.append(QString("天线开关情况: %1 （1:开；0:关）\r\n").arg((Sl_data.at(offset++)).toUInt(NULL,16)));
+        psam1status=Sl_data.at(offset++).toUInt(NULL,16);
+        psam2status=Sl_data.at(offset++).toUInt(NULL,16);
+        output_data.append(QString("PSAM1_STATUS: %1 (%2)\r\n").arg(psam1status).arg(dealRSUPSAMStatus(psam1status)));
+        output_data.append(QString("PSAM2_STATUS: %1 (%2)\r\n\r\n").arg(psam2status).arg(dealRSUPSAMStatus(psam2status)));
+    }
+    temp=offset;
+    for(;offset<temp+10;offset++){
+        datestr=datestr.append(Sl_data.at(offset));
+    }
+    output_data.append(QString("主控盒控制器验证码: %1\r\n\r\n").arg(QString(QByteArray::fromHex(datestr))));
+    for(int i=0;i<AntaNum;i++){
+        output_data.append(QString("天线盒%1控制器验证码: ").arg(i));
+        output_data.append(Sl_data.at(offset)+Sl_data.at(offset+1)+Sl_data.at(offset+2)+Sl_data.at(offset+3)+"\r\n");
+        offset+=4;
+        output_data.append("同步状态: "+Sl_data.at(offset)+Sl_data.at(offset+1)+Sl_data.at(offset+2)+Sl_data.at(offset+3)+"\r\n\r\n");
+        offset+=4;
+    }
+}
+
+void MainWindow::dealcheck2(QString input_data)
+{
+    output_data.clear();
+    int offset = 0;
+    int temp = 0;
+    QByteArray Version_arr;
+    QByteArray datastr=input_data.toLatin1();
+    output_data.append(QString("MAINTAIN_CHECK_RS: %1H (维护指令)\r\n").arg(datastr[offset++]));
+    output_data.append(QString("ARM编号: %1H \r\n").arg(datastr[offset++]));
+    temp=offset;
+    for(;offset<temp+10;offset++){
+        Version_arr=Version_arr.append(datastr.at(offset));
+    }
+    output_data.append("ARM编号: "+QByteArray::fromHex(Version_arr)+"\r\n");
+    qDebug()<<Version_arr;
+    qDebug()<<QByteArray::fromHex(Version_arr);
+}
+
 QString MainWindow::dealB0StatusCode(quint8 Status)
 {
     QString StatusStr;
@@ -1455,12 +1547,53 @@ QString MainWindow::dealRSUControlStatus(quint8 RSUControlStatus)
     return StatusStr;
 }
 
+QString MainWindow::dealRSUPSAMStatus(quint8 PsamStatus)
+{
+    QString PsamStatustr;
+    switch (PsamStatus) {
+    case 0x00:
+        PsamStatustr="NO CARD";
+        break;
+    case 0x01:
+        PsamStatustr="IDLE";
+        break;
+    case 0x02:
+        PsamStatustr="BUSY";
+        break;
+    case 0x03:
+        PsamStatustr="UNAUTHEN";
+        break;
+    case 0x04:
+        PsamStatustr="AUTHEN GET RANDOM";
+        break;
+    case 0x05:
+        PsamStatustr="AUTHENING";
+        break;
+    case 0x06:
+        PsamStatustr="PSAM鉴权失败";
+        break;
+    case 0xfd:
+        PsamStatustr="PSAM锁卡";
+        break;
+    case 0xfe:
+        PsamStatustr="PSAM保护状态";
+        break;
+    case 0xff:
+        PsamStatustr="PSAM异常";
+        break;
+
+    default:
+        PsamStatustr="异常值";
+        break;
+    }
+    return PsamStatustr;
+}
 
 void MainWindow::on_pushButton_clicked()
 {
-    QString Vctitle="VC帧解析工具 V0.0.2  Made by Alan";
+    QString Vctitle="VC帧解析工具 V0.0.3  Made by Alan";
     QString helpstr="解析格式：\r\nCX帧如：C13ECE2F41BDADCBD5BDADCBD5      BX帧如：\r\nFFFF00020000001CB100110102010001020000020100010200000202010000160200001670CF\r\n";
-    helpstr.append("支持ETC门架系统PC-RSU接口 V3.5 V3.4 V3.1版协议\r\n\r\n");
+    helpstr.append("支持ETC门架系统PC-RSU接口 V3.5 V3.4 V3.1版协议；支持一键检查维护帧\r\n\r\n");
     helpstr.append("Copyright 2020-2029 The CGTECH Company Ltd. All rights reserved. www.cgtech.com\r\n");
     helpstr.append("The program is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.");
     QMessageBox::about(this, Vctitle, helpstr);
