@@ -23,6 +23,9 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+
+    QString dealVC(quint8 cmdtype, QStringList Sldata);
+    //CX帧解析
     void dealC0(QStringList Sl_data);
     void dealC1(QStringList Sl_data);
     void dealC2(QStringList Sl_data);
@@ -36,7 +39,7 @@ private:
     void dealFA(QStringList Sl_data);
     void dealFB(QStringList Sl_data);
     void dealFC(QStringList Sl_data);
-
+    //BX帧解析
     void dealB0(QStringList Sl_data);
     void dealB1(QStringList Sl_data);
     void dealB2(QStringList Sl_data);
@@ -50,9 +53,21 @@ private:
     void dealEB(QStringList Sl_data);
     void dealEC(QStringList Sl_data);
 
-    void dealcheck(QStringList Sl_data);
+    void dealcheck(QStringList Sl_data);  //一键检查帧解析
     void dealcheck2(QString input_data);
-    
+    //DSRC帧解析
+    QString dealDSRC(QStringList* data);
+    void dealBST(QStringList* data);
+    void dealVST(QStringList* data);
+    void dealGetSecure_rq(QStringList* data);
+    void dealGetSecure_rs(QStringList* data);
+    void dealTransferChannel_rq(QStringList* data);
+    void dealTransferChannel_rs(QStringList* Sl_data);
+    void dealSetMMI_rq(QStringList* Sl_data);
+    void dealSetMMI_rs(QStringList* Sl_data);
+    void dealEventReport_rq(QStringList* Sl_data);
+    void dealEventReport_rs(QStringList* Sl_data);
+
     QString dealB0StatusCode(quint8 Status);
     QString dealB2StatusCode(quint8 DeviceType, quint8 Status);
     QString dealB4ErrorCode(quint8 ErrorCode);

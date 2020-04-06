@@ -17,9 +17,10 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_btn_parse_clicked()
 {
-    QString Error_Str;
+    QString Error_Str="";
     QString ErrorTitle="错误警告";
-    QString input_data = ui->textEdit_in->toPlainText().trimmed();
+    QString input_data = ui->textEdit_in->toPlainText().remove(QRegExp("\\s"));
+//    qDebug()<<input_data;
     if(input_data.isEmpty()==true) {
         return;
     }
@@ -28,18 +29,41 @@ void MainWindow::on_btn_parse_clicked()
         input_data.insert(i," ");
     }
     QStringList Sldata=input_data.split(" ");
+    if(Sldata.size()<2) return;
 //    QList Sldata=input_data.toLatin1().split(" ");
-    uint cmdtype=Sldata.at(0).toInt(NULL,16);
-    uint TextSize=Sldata.size();
+    quint8 cmdtype=Sldata.at(0).toUInt(NULL,16);
+    output_data.clear();
+//    QString tempstr="CCECBDF200000001";
     if(cmdtype==0xff){
         cmdtype=Sldata.at(8).toInt(NULL,16);
+        Error_Str.append(dealVC(cmdtype,Sldata));
+//        qDebug()<<"dealVC";
     }
     else if(cmdtype==0x04&&Sldata.at(20)=="5F"&&Sldata.at(21)=="1B"){
         dealcheck(Sldata);
+//        qDebug()<<"dealcheck";
+    }
+    else if(Sldata.size()>15){
+        Error_Str.append(dealDSRC(&Sldata));
+//        qDebug()<<"dealDSRC";
+    }
+    else{
+        Error_Str="非法帧格式";
+    }
+
+    if(Error_Str==""){
         ui->textEdit_out->setPlainText(output_data);
         ui->textEdit_out->setStyleSheet("font-size : 20px");
-        return;
     }
+    else{
+        QMessageBox::warning(this, ErrorTitle, Error_Str);
+    }
+}
+
+QString MainWindow::dealVC(quint8 cmdtype,QStringList Sldata)
+{
+    QString Error_Str;
+    uint TextSize=Sldata.size();
     switch (cmdtype) {
     case 0xc0:
         if(TextSize==22) dealC0(Sldata);
@@ -163,13 +187,7 @@ void MainWindow::on_btn_parse_clicked()
         Error_Str="输入错误！！！";
         break;
     }
-    if(Error_Str==""){
-        ui->textEdit_out->setPlainText(output_data);
-        ui->textEdit_out->setStyleSheet("font-size : 20px");
-    }
-    else{
-        QMessageBox::warning(this, ErrorTitle, Error_Str);
-    }
+    return Error_Str;
 }
 
 void MainWindow::dealC0(QStringList Sl_data)
@@ -179,7 +197,7 @@ void MainWindow::dealC0(QStringList Sl_data)
     QString unixtimeStr;
     QString flagidStr;
     QString resercedstr;
-    output_data.clear();
+
     c0_cmdstruct.cmd_type=0xc0;
     unixtimeStr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     c0_cmdstruct.unix_time=unixtimeStr.toUInt(NULL,16);
@@ -219,7 +237,7 @@ void MainWindow::dealC1(QStringList Sl_data)
 {
     QString tempstr;
     QString obuidStr;
-    output_data.clear();
+
     obuidStr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
         for(qint8 i=5;i<13;i++) {
             tempstr=tempstr.append(Sl_data.at(i));
@@ -233,7 +251,7 @@ void MainWindow::dealC2(QStringList Sl_data)
 {
     C2_CMD_STRTYPE c2_cmdstruct;
     QString obuidStr;
-    output_data.clear();
+
     obuidStr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     c2_cmdstruct.stoptype=Sl_data.at(5).toUInt(NULL,16);
     output_data.append("CmdType: C2 (停止交易指令)\r\n");
@@ -264,7 +282,7 @@ void MainWindow::dealC2(QStringList Sl_data)
 void MainWindow::dealC4(QStringList Sl_data)
 {
     C4_CMD_STRTYPE c4_cmdstruct;
-    output_data.clear();
+
     c4_cmdstruct.cmd_type=0xC4;
     c4_cmdstruct.ControlType=Sl_data.at(1).toUInt(NULL,16);
     output_data.append("CmdType: C4 (开关路侧单元指令)\r\n");
@@ -292,7 +310,7 @@ void MainWindow::dealC6(QStringList Sl_data)
     QString StationStr;
     QString EF04InfoStr;
     QString EF04Info2Str;
-    output_data.clear();
+
     int sldatasize=Sl_data.size();
     obuidstr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     for(qint8 i=5;i<13;i++) {
@@ -367,7 +385,7 @@ void MainWindow::dealC7(QStringList Sl_data)
     QString cpc_macstr;
     QString MTCIfo1str;
     QString MTCIfo2str;
-    output_data.clear();
+
     cpc_macstr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     for(qint8 i=5;i<13;i++) {
         tempstr=tempstr.append(Sl_data.at(i));
@@ -407,7 +425,7 @@ void MainWindow::dealC8(QStringList Sl_data)
     QString obuidstr;
     QString EF04InfoStr;
     QString EF04Info2Str;
-    output_data.clear();
+
     obuidstr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     c8_cmdstruct.Epserial=QString(Sl_data.at(5)+Sl_data.at(6)).toUInt(NULL,16);
     if(Sl_data.size()==7){
@@ -441,7 +459,7 @@ void MainWindow::dealC8(QStringList Sl_data)
 
 void MainWindow::dealCA(QStringList Sl_data)
 {
-    output_data.clear();
+
     QString PSAMChannelstr;
     if(Sl_data.size()==5){
         PSAMChannelstr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
@@ -458,7 +476,7 @@ void MainWindow::dealCB(QStringList Sl_data)
 {
     CB_CMD_STRTYPE cb_cmdstruct;
     QString AuthInfoStr;
-    output_data.clear();
+
     cb_cmdstruct.cmd_type=0xCB;
     cb_cmdstruct.PSAMCount=Sl_data.at(1).toUInt(NULL,16);
     output_data.append("CmdType: CB (PSAM 授权指令)\r\n");
@@ -474,7 +492,7 @@ void MainWindow::dealCB(QStringList Sl_data)
 void MainWindow::dealCF(QStringList Sl_data)
 {
     CF_CMD_STRTYPE cf_cmdstruct;
-    output_data.clear();
+
     cf_cmdstruct.cmd_type=0xCF;
     output_data.append("CmdType: CF (心跳应答指令)\r\n");
     if(Sl_data.length()>1){
@@ -486,7 +504,7 @@ void MainWindow::dealCF(QStringList Sl_data)
 void MainWindow::dealFA(QStringList Sl_data)
 {
     FA_CMD_STRTYPE fa_cmdstruct;
-    output_data.clear();
+
     fa_cmdstruct.cmd_type=0xCF;
     fa_cmdstruct.RSUID=Sl_data.at(1).toUInt(NULL,16);
     fa_cmdstruct.TxStatus=Sl_data.at(2).toUInt(NULL,16);
@@ -521,7 +539,7 @@ void MainWindow::dealFA(QStringList Sl_data)
 void MainWindow::dealFB(QStringList Sl_data)
 {
     FB_CMD_STRTYPE fb_cmdstruct;
-    output_data.clear();
+
     fb_cmdstruct.cmd_type=0xCF;
     fb_cmdstruct.RSUID=Sl_data.at(1).toUInt(NULL,16);
     fb_cmdstruct.RxStatus=Sl_data.at(2).toUInt(NULL,16);
@@ -547,7 +565,7 @@ void MainWindow::dealFB(QStringList Sl_data)
 void MainWindow::dealFC(QStringList Sl_data)
 {
     FC_CMD_STRTYPE fc_cmdstruct;
-    output_data.clear();
+
     fc_cmdstruct.cmd_type=0xCF;
     fc_cmdstruct.BeaconIDStatus=Sl_data.at(1).toUInt(NULL,16);
     output_data.append("CmdType: FC (BeaconID 设置指令)\r\n");
@@ -577,7 +595,7 @@ void MainWindow::dealB0(QStringList Sl_data)
     QString FlagIDstr;
     QString Reserved;
     uint offset=0;
-    output_data.clear();
+
     b0_cmdstruct.FrameType=0xCF;
     b0_cmdstruct.RSUStatus=Sl_data.at(9).toUInt(NULL,16);
     RSUStatusStr=dealB0StatusCode(b0_cmdstruct.RSUStatus);
@@ -624,7 +642,7 @@ void MainWindow::dealB1(QStringList Sl_data)
     QString RSUControlStatus1str;
     QString RSUControlStatus2str;
     int temp;
-    output_data.clear();
+
     int offset=9;
     b1_cmdstruct.RSUControlStatus1=Sl_data.at(offset++).toUInt(NULL,16);
     b1_cmdstruct.RSUControlStatus2=Sl_data.at(offset++).toUInt(NULL,16);
@@ -670,7 +688,7 @@ void MainWindow::dealB1(QStringList Sl_data)
 void MainWindow::dealB2(QStringList Sl_data)
 {
     B2_CMD_STRTYPE b2_cmdstruct;
-    output_data.clear();
+
     int offset;
     int temp;
     QString obuidstr;
@@ -738,7 +756,7 @@ void MainWindow::dealB4(QStringList Sl_data)
     QString obuidstr;
     QString ErrorCodeStr;
     QString VehicleInfostr;
-    output_data.clear();
+
     QString CardRestMoneystr;
     QString EF04Infostr;
     QString IssuerInfostr;
@@ -814,7 +832,7 @@ void MainWindow::dealB4(QStringList Sl_data)
 
 void MainWindow::dealB5(QStringList Sl_data)
 {
-    output_data.clear();
+
     QString obuidstr;
     QString PSAMNostr;
     QString TransTimestr;
@@ -849,7 +867,7 @@ void MainWindow::dealB5(QStringList Sl_data)
 
 void MainWindow::dealB7(QStringList Sl_data)
 {
-    output_data.clear();
+
     QString cpcmacstr;
     QString FlagIDstr;
     quint8 ErrorCode=Sl_data.at(13).toInt(NULL,16);
@@ -870,7 +888,7 @@ void MainWindow::dealB7(QStringList Sl_data)
 
 void MainWindow::dealB8(QStringList Sl_data)
 {
-    output_data.clear();
+
     quint8 ErrorCode=Sl_data.at(13).toInt(NULL,16);
     QString ErrorCodeStr=dealB7ErrorCode(ErrorCode);
     QString CardRestMoneystr=Sl_data.at(22)+Sl_data.at(23)+Sl_data.at(24)+Sl_data.at(25);
@@ -884,7 +902,7 @@ void MainWindow::dealB8(QStringList Sl_data)
 }
 void MainWindow::dealBA(QStringList Sl_data)
 {
-    output_data.clear();
+
     QString Datetimestr;
     int PSAMCount;
     QString PSAMInfostr;
@@ -910,7 +928,7 @@ void MainWindow::dealBB(QStringList Sl_data)
     int ErrorCode;
     QString ErrorCodestr;
     QString AuthResultstr;
-    output_data.clear();
+
     PSAMCount=Sl_data.at(10).toInt(NULL,16);
     ErrorCode=Sl_data.at(9).toInt(NULL,16);
     ErrorCodestr=dealBBErrorCode(ErrorCode);
@@ -927,7 +945,7 @@ void MainWindow::dealBB(QStringList Sl_data)
 void MainWindow::dealEA(QStringList Sl_data)
 {
     int Status=Sl_data.at(9).toInt(NULL,16);
-    output_data.clear();
+
     output_data.append("CmdType: EA (测试信号发送信息帧)\r\n");
     if(Status==0){
         output_data.append("Status: 00H (正确执行)\r\n");
@@ -948,7 +966,7 @@ void MainWindow::dealEB(QStringList Sl_data)
     quint16 RevNum=QString(Sl_data.at(10)+Sl_data.at(11)).toUInt(NULL,16);
     quint16 DiffRevNum=QString(Sl_data.at(datasize-6)+Sl_data.at(datasize-5)).toUInt(NULL,16);
     quint16 RevNum_CRCErr=QString(Sl_data.at(datasize-4)+Sl_data.at(datasize-3)).toUInt(NULL,16);
-    output_data.clear();
+
 
     output_data.append("CmdType: EB (测试信号接收信息帧)\r\n");
     if(Status==0){
@@ -978,7 +996,7 @@ void MainWindow::dealEC(QStringList Sl_data)
 {
     int Status=Sl_data.at(9).toInt(NULL,16);
     int BeaconIDStatus=Sl_data.at(10).toInt(NULL,16);
-    output_data.clear();
+
     output_data.append("CmdType: EC (BeaconID 设置信息帧)\r\n");
     if(Status==0){
         output_data.append("Status: 00H (正确执行)\r\n");
@@ -1007,7 +1025,7 @@ void MainWindow::dealcheck(QStringList Sl_data)
     int temp = 0;
     quint8 psam1status;
     quint8 psam2status;
-    output_data.clear();
+
     QByteArray VersionArr;
     QByteArray ant_versionArr;
     QByteArray datestr;
@@ -1070,7 +1088,7 @@ void MainWindow::dealcheck(QStringList Sl_data)
 
 void MainWindow::dealcheck2(QString input_data)
 {
-    output_data.clear();
+
     int offset = 0;
     int temp = 0;
     QByteArray Version_arr;
@@ -1593,8 +1611,221 @@ void MainWindow::on_pushButton_clicked()
 {
     QString Vctitle="VC帧解析工具 V0.0.3  Made by Alan";
     QString helpstr="解析格式：\r\nCX帧如：C13ECE2F41BDADCBD5BDADCBD5      BX帧如：\r\nFFFF00020000001CB100110102010001020000020100010200000202010000160200001670CF\r\n";
-    helpstr.append("支持ETC门架系统PC-RSU接口 V3.5 V3.4 V3.1版协议；支持一键检查维护帧\r\n\r\n");
+    helpstr.append("支持ETC门架系统PC-RSU接口 V3.5 V3.4 V3.1版协议；支持一键检查维护帧解析；支持DSRC帧解析\r\n\r\n");
     helpstr.append("Copyright 2020-2029 The CGTECH Company Ltd. All rights reserved. www.cgtech.com\r\n");
     helpstr.append("The program is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.");
     QMessageBox::about(this, Vctitle, helpstr);
 }
+
+QString MainWindow::dealDSRC(QStringList* data){
+    QString errstr;
+    if(data->at(7)=="91"){
+       if(data->at(8)=="C0"){
+           dealBST(data);
+       }
+       else if(data->at(8)=="D0"){
+           dealVST(data);
+       }
+       else{
+           errstr="帧格式错误";
+       }
+    }
+    else if(data->at(6)=="91"){
+        if(data->at(7)=="C0"){
+            data->insert(0,"00");
+            dealBST(data);
+        }
+        else if(data->at(7)=="D0"){
+            data->insert(0,"00");
+            dealVST(data);
+        }
+        else{
+            errstr="帧格式错误";
+        }
+    }
+    else if(data->at(10)=="91"){
+        if(data->at(14)=="14"){
+            dealGetSecure_rq(data);
+            qDebug()<<"dealGetSecure_rq";
+        }
+        else if(data->at(14)=="18"){
+            dealTransferChannel_rq(data);
+        }
+        else{
+            errstr="帧格式错误";
+        }
+    }
+//    else if(data->at(9)=="91"){
+//        if(data->at(13)=="C0"){
+//            data->insert(0,"00");
+//            dealBST(data);
+//        }
+//        else if(data->at(13)=="D0"){
+//            data->insert(0,"00");
+//            dealVST(data);
+//        }
+//        else{
+//            errstr="帧格式错误";
+//        }
+//    }
+    else if(data->at(8)=="91"){
+        if(data->at(11)=="15"){
+            dealGetSecure_rs(data);
+        }
+        else if(data->at(11)=="19"){
+            dealTransferChannel_rs(data);
+        }
+        else{
+            errstr="帧格式错误";
+        }
+    }
+    else{
+        errstr="帧格式错误";
+    }
+    return errstr;
+}
+
+void MainWindow::dealBST(QStringList* data){
+    qDebug()<<*data;
+}
+
+void MainWindow::dealVST(QStringList* data){
+    QString ICCInfoStr;
+    quint16 datasize=data->size();
+    quint8 status=data->at(datasize-4).toUInt(NULL,16);
+    if(datasize<51){
+        return;
+    }
+    output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(5)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(6)+"\r\n");
+    output_data.append("字段字头: "+data->at(7)+"\r\n");
+    output_data.append("INTIALISATION_response: "+data->at(8)+" (VST)\r\n");
+    output_data.append("Profile: "+data->at(9)+" ( 信道号，00H:A类,通道 1；01H:A 类,通道 2；10H:B类,通道 1；11H：B 类,通道 2)\r\n");
+    output_data.append("ApplicationList: "+data->at(10)+" ( 应用列表数，至少为 1)\r\n");
+    output_data.append("Aid: "+data->at(11)+" \r\n");
+    output_data.append("Did: "+data->at(12)+" (1 号目录位 ETC 应用目录)\r\n");
+    output_data.append("Option indicator: "+data->at(13)+"\r\n");
+    output_data.append("ParameterSysInfoFile: "+data->at(14)+" ( 携带文件:系统信息文件SysInfoFile)\r\n");
+    output_data.append("服务提供商编码: "+data->at(15)+data->at(16)+data->at(17)+data->at(18)+data->at(19)+data->at(20)+data->at(21)+data->at(22)+"\r\n");
+    output_data.append("ContractType: "+data->at(23)+" (协约类型)\r\n");
+    output_data.append("ContractVersion: "+data->at(24)+" (协约版本)\r\n");
+    output_data.append("ContractSerialNumber: "+data->at(25)+data->at(26)+data->at(27)+data->at(28)+data->at(29)+data->at(30)+data->at(31)+data->at(32)+" (合同序列号)\r\n");
+    output_data.append("ContractSignedDate: "+data->at(33)+data->at(34)+data->at(35)+data->at(36)+" (合同签署日期)\r\n");
+    output_data.append("ContractExpiredDate: "+data->at(37)+data->at(38)+data->at(39)+data->at(40)+" (合同过期日期)\r\n");
+    output_data.append("Parameter.gbICCInfo: "+data->at(41)+"\r\n");
+    if(datasize!=50){
+        for(quint16 i=42;i<(datasize-9);i++){
+            ICCInfoStr=ICCInfoStr.append(data->at(i));
+        }
+    }
+    output_data.append("ICCInfo: "+ICCInfoStr+" (IC 卡预读信息)\r\n");
+    output_data.append("ObuConfiguration: "+data->at(datasize-9)+data->at(datasize-8)+data->at(datasize-7)+data->at(datasize-6)+"\r\n");
+    output_data.append("EquipmentClass_Version: "+data->at(datasize-5)+" ( IC 卡接口、硬件版本)\r\n");
+    output_data.append("OBUStatus: "+data->at(datasize-4)+" ("+dealB2StatusCode(1,status)+")\r\n");
+    output_data.append("拆卸状态: "+data->at(datasize-3)+" (ESAM 系统信息文件第27 字节)\r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+" (帧校验)\r\n");
+}
+
+void MainWindow::dealGetSecure_rq(QStringList* data){
+    quint8 accessCredentialsOp=(data->at(11).toUInt(NULL,16))&&0x08;
+    quint8 datasize=data->size();
+    if(datasize<32){
+        return;
+    }
+
+    output_data.append("OBU/CPC MAC: "+data->at(4)+data->at(5)+data->at(6)+data->at(7)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(8)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(9)+"\r\n");
+    output_data.append("字段字头: "+data->at(10)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(11)+"\r\n");
+    output_data.append("Did: "+data->at(12)+" \r\n");
+    output_data.append("ActionType: "+data->at(13)+" (GetSecure ActionType=0)\r\n");
+    if(accessCredentialsOp==0x08){
+        output_data.append("accessCredentials: "+data->at(14)+data->at(15)+data->at(16)+data->at(17)+data->at(18)+data->at(19)+data->at(20)+data->at(21)+" \r\n");
+    }
+    output_data.append("GetSecureRq: "+data->at(datasize-18)+" (Container=0x14)\r\n");
+    output_data.append("KeyIDforEncryptOP: "+data->at(datasize-17)+"\r\n");
+    output_data.append("FID: "+data->at(datasize-16)+"\r\n");
+    output_data.append("offset: "+data->at(datasize-15)+data->at(datasize-14)+"\r\n");
+    output_data.append("Length: "+data->at(datasize-13)+"\r\n");
+    output_data.append("rndRSU: "+data->at(datasize-12)+data->at(datasize-11)+data->at(datasize-10)+data->at(datasize-9)+data->at(datasize-8)+data->at(datasize-7)+data->at(datasize-6)+data->at(datasize-5)+"\r\n");
+    output_data.append("KeyIDforAuthen: "+data->at(datasize-4)+"\r\n");
+    output_data.append("KeyIDforEncrypt: "+data->at(datasize-3)+"\r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+"\r\n");
+}
+
+void MainWindow::dealGetSecure_rs(QStringList* data){
+    QString filestr;
+    quint8 datasize=data->size();
+    if(datasize<21){
+        return;
+    }
+
+    output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(5)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(6)+"\r\n");
+    output_data.append("状态子域: "+data->at(7)+"\r\n");
+    output_data.append("字段字头: "+data->at(8)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(9)+"\r\n");
+    output_data.append("DID: "+data->at(10)+" \r\n");
+    output_data.append("GetSecureRs: "+data->at(11)+" (Container=0x15)\r\n");
+    output_data.append("FID: "+data->at(12)+" \r\n");
+    for(quint8 i=13;i<(datasize-11);i++){
+        filestr.append(data->at(i));
+    }
+    output_data.append("file: "+filestr+" (车辆信息文件+鉴别码的密文)\r\n");
+    output_data.append("Authenticator: "+data->at(datasize-11)+data->at(datasize-10)+data->at(datasize-9)+data->at(datasize-8)+data->at(datasize-7)+data->at(datasize-6)+data->at(datasize-5)+data->at(datasize-4)+"\r\n");
+    output_data.append("ReturnStatus: "+data->at(datasize-3)+" (OBU 处理状态)\r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+"\r\n");
+}
+
+void MainWindow::dealTransferChannel_rq(QStringList* data){
+    QString apdustr;
+    quint8 datasize=data->size();
+    if(datasize<17){
+        return;
+    }
+
+    output_data.append("OBU/CPC MAC: "+data->at(4)+data->at(5)+data->at(6)+data->at(7)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(8)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(9)+"\r\n");
+    output_data.append("字段字头: "+data->at(10)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(11)+"\r\n");
+    output_data.append("Did: "+data->at(12)+" \r\n");
+    output_data.append("ActionType: "+data->at(13)+" (GetSecure ActionType=0)\r\n");
+    output_data.append("ChannelRq: "+data->at(14)+" \r\n");
+    output_data.append("ChannelID: "+data->at(15)+" (ICC 卡通道)\r\n");
+    for(quint8 i=16;i<(datasize-2);i++){
+        apdustr.append(data->at(i));
+    }
+    output_data.append("ChannelID: "+apdustr+" (ICC 卡通道)\r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+"\r\n");
+}
+
+void MainWindow::dealTransferChannel_rs(QStringList* data){
+    QString datastr;
+    quint8 datasize=data->size();
+    if(datasize<21){
+        return;
+    }
+
+    output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(5)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(6)+"\r\n");
+    output_data.append("状态子域: "+data->at(7)+"\r\n");
+    output_data.append("字段字头: "+data->at(8)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(9)+"\r\n");
+    output_data.append("DID: "+data->at(10)+" \r\n");
+    output_data.append("ChannelRs: "+data->at(11)+" (Container=0x19)\r\n");
+    output_data.append("ChannelID: "+data->at(12)+" (IC 卡通道)\r\n");
+    output_data.append("DATALIST: "+data->at(13)+" (IC 卡 APDU 指令返回的数量)\r\n");
+    for(quint8 i=14;i<(datasize-3);i++){
+        datastr.append(data->at(i));
+    }
+    output_data.append("ChannelID: "+datastr+" (IC 卡 APDU 指令返回的数据)\r\n");
+    output_data.append("ReturnStatus: "+data->at(datasize-3)+" (OBU 处理状态)\r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+"\r\n");
+}
+
+
