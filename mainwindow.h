@@ -66,7 +66,6 @@ private:
     void dealSetMMI_rq(QStringList* Sl_data);
     void dealSetMMI_rs(QStringList* Sl_data);
     void dealEventReport_rq(QStringList* Sl_data);
-    void dealEventReport_rs(QStringList* Sl_data);
 
     QString dealB0StatusCode(quint8 Status);
     QString dealB2StatusCode(quint8 DeviceType, quint8 Status);

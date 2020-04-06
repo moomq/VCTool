@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include<QDebug>
+#include<QDate>
 #include<QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -20,7 +21,7 @@ void MainWindow::on_btn_parse_clicked()
     QString Error_Str="";
     QString ErrorTitle="错误警告";
     QString input_data = ui->textEdit_in->toPlainText().remove(QRegExp("\\s"));
-//    qDebug()<<input_data;
+    QString headstr=input_data.at(0);
     if(input_data.isEmpty()==true) {
         return;
     }
@@ -33,19 +34,18 @@ void MainWindow::on_btn_parse_clicked()
 //    QList Sldata=input_data.toLatin1().split(" ");
     quint8 cmdtype=Sldata.at(0).toUInt(NULL,16);
     output_data.clear();
-//    QString tempstr="CCECBDF200000001";
-    if(cmdtype==0xff){
-        cmdtype=Sldata.at(8).toInt(NULL,16);
+    ui->textEdit_out->clear();
+    if((input_data.left(5)=="FF FF")&&(input_data.mid(6,5)!="FF FF")){
+        Error_Str.append(dealVC((Sldata.at(8).toInt(NULL,16)),Sldata));
+    }
+    else if(headstr=="C"){
         Error_Str.append(dealVC(cmdtype,Sldata));
-//        qDebug()<<"dealVC";
     }
     else if(cmdtype==0x04&&Sldata.at(20)=="5F"&&Sldata.at(21)=="1B"){
         dealcheck(Sldata);
-//        qDebug()<<"dealcheck";
     }
-    else if(Sldata.size()>15){
+    else if(Sldata.size()>11||(input_data.left(11)=="FF FF FF FF")){
         Error_Str.append(dealDSRC(&Sldata));
-//        qDebug()<<"dealDSRC";
     }
     else{
         Error_Str="非法帧格式";
@@ -201,6 +201,7 @@ void MainWindow::dealC0(QStringList Sl_data)
     c0_cmdstruct.cmd_type=0xc0;
     unixtimeStr=Sl_data.at(1)+Sl_data.at(2)+Sl_data.at(3)+Sl_data.at(4);
     c0_cmdstruct.unix_time=unixtimeStr.toUInt(NULL,16);
+    QDateTime datatime = QDateTime::fromTime_t(c0_cmdstruct.unix_time);
     DatetimeStr= QString(Sl_data.at(5)+Sl_data.at(6)+Sl_data.at(7)+Sl_data.at(8)+Sl_data.at(9)+Sl_data.at(10)+Sl_data.at(11));
     c0_cmdstruct.lanemode=Sl_data.at(12).toUInt(NULL,16)&0xFF;
     c0_cmdstruct.bstinterval=Sl_data.at(13).toUInt(NULL,16)&0xFF;
@@ -211,7 +212,8 @@ void MainWindow::dealC0(QStringList Sl_data)
     c0_cmdstruct.flagid=flagidStr.toUInt(NULL,16);
     resercedstr=Sl_data.at(20)+Sl_data.at(21);
     output_data.append("CmdType: C0 (初始化指令)\r\n");
-    output_data.append(QString("unix_time: %1 (UNIX 时间 0x%2)\r\n").arg(c0_cmdstruct.unix_time).arg(unixtimeStr));
+    output_data.append(QString("unix_time: %1 (").arg(unixtimeStr));
+    output_data.append(datatime.toString("yyyy-MM-dd hh:mm:ss:zzz ddd")+")\r\n");
     output_data.append("Datetime:  "+Sl_data.at(5)+Sl_data.at(6)+"年"+Sl_data.at(7)+"月"+Sl_data.at(8)+"日 "+Sl_data.at(9)+":"+Sl_data.at(10)+":"+Sl_data.at(11)+"\r\n");
     if(c0_cmdstruct.lanemode==0x11)
     {
@@ -275,7 +277,9 @@ void MainWindow::dealC2(QStringList Sl_data)
     {
         QString unixtimeStr=Sl_data.at(6)+Sl_data.at(7)+Sl_data.at(8)+Sl_data.at(9);
         c2_cmdstruct.unix_time=unixtimeStr.toUInt(NULL,16);
-        output_data.append(QString("unix_time: %1 (当前时间 0x%2)\r\n").arg(c2_cmdstruct.unix_time).arg(unixtimeStr));
+        QDateTime datatime = QDateTime::fromTime_t(c2_cmdstruct.unix_time);
+        output_data.append(QString("unix_time: %1 (").arg(unixtimeStr));
+        output_data.append(datatime.toString("yyyy-MM-dd hh:mm:ss:zzz ddd")+")\r\n");
     }
 }
 
@@ -1626,18 +1630,48 @@ QString MainWindow::dealDSRC(QStringList* data){
        else if(data->at(8)=="D0"){
            dealVST(data);
        }
+       else if(data->at(10)=="1B"){
+           dealSetMMI_rs(data);
+       }
+       else if(data->at(10)=="19"){
+           data->insert(0,"00");
+           dealTransferChannel_rs(data);
+       }
+       else if(data->at(10)=="15"){
+           data->insert(0,"00");
+           dealGetSecure_rs(data);
+       }
        else{
            errstr="帧格式错误";
        }
     }
     else if(data->at(6)=="91"){
         if(data->at(7)=="C0"){
-            data->insert(0,"00");
             dealBST(data);
         }
         else if(data->at(7)=="D0"){
             data->insert(0,"00");
             dealVST(data);
+        }
+        else if(data->at(10)=="1A"){
+            dealSetMMI_rq(data);
+        }
+        else if(data->at(7)=="60"){
+            dealEventReport_rq(data);
+        }
+        else if(data->at(10)=="18"){
+            data->insert(0,"80");
+            data->insert(1,"01");
+            data->insert(2,"00");
+            data->insert(3,"20");
+            dealTransferChannel_rq(data);
+        }
+        else if(data->at(10)=="14"){
+            data->insert(0,"80");
+            data->insert(1,"01");
+            data->insert(2,"00");
+            data->insert(3,"20");
+            dealGetSecure_rq(data);
         }
         else{
             errstr="帧格式错误";
@@ -1655,19 +1689,6 @@ QString MainWindow::dealDSRC(QStringList* data){
             errstr="帧格式错误";
         }
     }
-//    else if(data->at(9)=="91"){
-//        if(data->at(13)=="C0"){
-//            data->insert(0,"00");
-//            dealBST(data);
-//        }
-//        else if(data->at(13)=="D0"){
-//            data->insert(0,"00");
-//            dealVST(data);
-//        }
-//        else{
-//            errstr="帧格式错误";
-//        }
-//    }
     else if(data->at(8)=="91"){
         if(data->at(11)=="15"){
             dealGetSecure_rs(data);
@@ -1679,6 +1700,7 @@ QString MainWindow::dealDSRC(QStringList* data){
             errstr="帧格式错误";
         }
     }
+
     else{
         errstr="帧格式错误";
     }
@@ -1686,7 +1708,61 @@ QString MainWindow::dealDSRC(QStringList* data){
 }
 
 void MainWindow::dealBST(QStringList* data){
-    qDebug()<<*data;
+    quint16 datasize=data->size();
+    if(datasize<25){
+        return;
+    }
+    QString unixtimeStr=data->at(12)+data->at(12)+data->at(14)+data->at(15);
+    uint time = unixtimeStr.toUInt(NULL,16);
+    QDateTime datatime = QDateTime::fromTime_t(time);
+    quint8 fileread=data->at(21).toUInt(NULL,16);
+    output_data.append("帧类型：INITIALISATION_request（BST）\r\n");
+    output_data.append("MAC地址: "+data->at(0)+data->at(1)+data->at(2)+data->at(3)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(4)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(5)+"\r\n");
+    output_data.append("字段字头: "+data->at(6)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(7)+" (BST)\r\n");
+    output_data.append("Rsu BeaconID: "+data->at(8)+data->at(9)+data->at(10)+data->at(11)+"\r\n");
+    output_data.append("UNIXTime: "+data->at(12)+data->at(12)+data->at(14)+data->at(15)+" (");
+    output_data.append(datatime.toString("yyyy-MM-dd hh:mm:ss:zzz ddd")+")\r\n");
+    output_data.append("Profile: "+data->at(16)+" ( 信道号，00H:A类,通道 1；01H:A 类,通道 2；10H:B类,通道 1；11H：B 类,通道 2)\r\n");
+    output_data.append("MandApplications: "+data->at(17)+" \r\n");
+    output_data.append("DsrcApplicationEntityID: "+data->at(18)+" \r\n");
+    output_data.append("Icctransmode: "+data->at(19)+" (RSU 支持的卡片交易模式)\r\n");
+    output_data.append("PretreatPara: "+data->at(20)+" (Container Type=0x29)\r\n");
+    output_data.append("Option indicator: "+data->at(21)+" \r\n");
+    output_data.append("sysinfoFileMode: "+data->at(22)+" (系统信息文件预处理模式)\r\n");
+    quint8 offset=23;
+    if((fileread&0x80)==0x80){
+        output_data.append("Length0002: "+data->at(offset)+data->at(offset+1)+" (预读 0002 偏移量和长度)\r\n");
+        offset+=2;
+    }
+    else{
+        output_data.append("Length0002: NULL (预读 0002 偏移量和长度)\r\n");
+    }
+    if((fileread&0x40)==0x40){
+        output_data.append("Length0012: "+data->at(offset)+data->at(offset+1)+" (预读 0012 偏移量和长度)\r\n");
+        offset+=2;
+    }
+    else{
+        output_data.append("Length0012: NULL (预读 0012 偏移量和长度)\r\n");
+    }
+    if((fileread&0x20)==0x20){
+        output_data.append("Length0015: "+data->at(offset)+data->at(offset+1)+" (预读 0015 偏移量和长度)\r\n");
+        offset+=2;
+    }
+    else{
+        output_data.append("Length0015: NULL (预读 0015 偏移量和长度)\r\n");
+    }
+    if((fileread&0x10)==0x10){
+        output_data.append("Length0019: "+data->at(offset)+data->at(offset+1)+" (预读 0019 偏移量和长度)\r\n");
+        offset+=2;
+    }
+    else{
+        output_data.append("Length0019: NULL (预读 0019 偏移量和长度)\r\n");
+    }
+    output_data.append("Profilelist: "+data->at(datasize-3)+" \r\n");
+    output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+" (帧校验)\r\n");
 }
 
 void MainWindow::dealVST(QStringList* data){
@@ -1696,11 +1772,12 @@ void MainWindow::dealVST(QStringList* data){
     if(datasize<51){
         return;
     }
+    output_data.append("帧类型：INITIALISATION_request（VST）\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
     output_data.append("MAC控制域: "+data->at(5)+"\r\n");
     output_data.append("LLC控制域: "+data->at(6)+"\r\n");
     output_data.append("字段字头: "+data->at(7)+"\r\n");
-    output_data.append("INTIALISATION_response: "+data->at(8)+" (VST)\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(8)+" (VST)\r\n");
     output_data.append("Profile: "+data->at(9)+" ( 信道号，00H:A类,通道 1；01H:A 类,通道 2；10H:B类,通道 1；11H：B 类,通道 2)\r\n");
     output_data.append("ApplicationList: "+data->at(10)+" ( 应用列表数，至少为 1)\r\n");
     output_data.append("Aid: "+data->at(11)+" \r\n");
@@ -1733,7 +1810,7 @@ void MainWindow::dealGetSecure_rq(QStringList* data){
     if(datasize<32){
         return;
     }
-
+    output_data.append("帧类型：GetSecure.request\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(4)+data->at(5)+data->at(6)+data->at(7)+"\r\n");
     output_data.append("MAC控制域: "+data->at(8)+"\r\n");
     output_data.append("LLC控制域: "+data->at(9)+"\r\n");
@@ -1761,7 +1838,7 @@ void MainWindow::dealGetSecure_rs(QStringList* data){
     if(datasize<21){
         return;
     }
-
+    output_data.append("帧类型：GetSecure.response\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
     output_data.append("MAC控制域: "+data->at(5)+"\r\n");
     output_data.append("LLC控制域: "+data->at(6)+"\r\n");
@@ -1786,14 +1863,14 @@ void MainWindow::dealTransferChannel_rq(QStringList* data){
     if(datasize<17){
         return;
     }
-
+    output_data.append("帧类型：TransferChannel.request\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(4)+data->at(5)+data->at(6)+data->at(7)+"\r\n");
     output_data.append("MAC控制域: "+data->at(8)+"\r\n");
     output_data.append("LLC控制域: "+data->at(9)+"\r\n");
     output_data.append("字段字头: "+data->at(10)+"\r\n");
     output_data.append("T-APDU&Optional: "+data->at(11)+"\r\n");
     output_data.append("Did: "+data->at(12)+" \r\n");
-    output_data.append("ActionType: "+data->at(13)+" (GetSecure ActionType=0)\r\n");
+    output_data.append("ActionType: "+data->at(13)+" (TransferChannel ActionType=3)\r\n");
     output_data.append("ChannelRq: "+data->at(14)+" \r\n");
     output_data.append("ChannelID: "+data->at(15)+" (ICC 卡通道)\r\n");
     for(quint8 i=16;i<(datasize-2);i++){
@@ -1809,7 +1886,7 @@ void MainWindow::dealTransferChannel_rs(QStringList* data){
     if(datasize<21){
         return;
     }
-
+    output_data.append("帧类型：TransferChannel.response\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
     output_data.append("MAC控制域: "+data->at(5)+"\r\n");
     output_data.append("LLC控制域: "+data->at(6)+"\r\n");
@@ -1828,4 +1905,42 @@ void MainWindow::dealTransferChannel_rs(QStringList* data){
     output_data.append("FCS: "+data->at(datasize-2)+data->at(datasize-1)+"\r\n");
 }
 
+void MainWindow::dealSetMMI_rq(QStringList* data){
+    output_data.append("帧类型：SetMMI.request\r\n");
+    output_data.append("MAC地址: "+data->at(0)+data->at(1)+data->at(2)+data->at(3)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(4)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(5)+"\r\n");
+    output_data.append("字段字头: "+data->at(6)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(7)+" (Action.request)\r\n");
+    output_data.append("DID : "+data->at(8)+" (1号目录为 ETC 应用目录)\r\n");
+    output_data.append("ActionType : "+data->at(9)+" (SetMMI ActionType=4)\r\n");
+    output_data.append("SetMMI.rq : "+data->at(10)+" (Container=0x1A)\r\n");
+    output_data.append("Parameter : "+data->at(11)+" (0-OK 1-NOK 2…)\r\n");
+    output_data.append("FCS : "+data->at(12)+data->at(13)+" (帧校验)\r\n");
+}
 
+void MainWindow::dealSetMMI_rs(QStringList* data){
+    output_data.append("帧类型：SetMMI.response\r\n");
+    output_data.append("MAC地址: "+data->at(0)+data->at(1)+data->at(2)+data->at(3)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(4)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(5)+"\r\n");
+    output_data.append("状态子域: "+data->at(6)+"\r\n");
+    output_data.append("字段字头: "+data->at(7)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(8)+" (Action.response)\r\n");
+    output_data.append("DID : "+data->at(9)+" (1号目录为 ETC 应用目录)\r\n");
+    output_data.append("SetMMIRs : "+data->at(10)+" (Container=0x1B)\r\n");
+    output_data.append("ReturnStatus : "+data->at(11)+" (OBU 处理状态)\r\n");
+    output_data.append("FCS : "+data->at(12)+data->at(13)+" (帧校验)\r\n");
+}
+
+void MainWindow::dealEventReport_rq(QStringList* data){
+    output_data.append("帧类型：Event_Report.request\r\n");
+    output_data.append("MAC地址: "+data->at(0)+data->at(1)+data->at(2)+data->at(3)+"\r\n");
+    output_data.append("MAC控制域: "+data->at(4)+"\r\n");
+    output_data.append("LLC控制域: "+data->at(5)+"\r\n");
+    output_data.append("字段字头: "+data->at(6)+"\r\n");
+    output_data.append("T-APDU&Optional: "+data->at(7)+" (Event_Report.request)\r\n");
+    output_data.append("DID : "+data->at(8)+" (1号目录为 ETC 应用目录)\r\n");
+    output_data.append("EventType : "+data->at(9)+" (Release=0)\r\n");
+    output_data.append("FCS : "+data->at(10)+data->at(11)+" (帧校验)\r\n");
+}
