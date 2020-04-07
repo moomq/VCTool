@@ -3,6 +3,7 @@
 #include<QDebug>
 #include<QDate>
 #include<QMessageBox>
+#include<QTextCodec>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -701,6 +702,8 @@ void MainWindow::dealB2(QStringList Sl_data)
     QString DateofIssuestr;
     QString DateofExpirestr;
     QString StatusStr;
+    QTextCodec *gbkcodec = QTextCodec::codecForName("GBK");
+    QTextCodec *utf8codec = QTextCodec::codecForName("utf-8");
     b2_cmdstruct.FrameType=0xB2;
     obuidstr=Sl_data.at(9)+Sl_data.at(10)+Sl_data.at(11)+Sl_data.at(12);
     b2_cmdstruct.OBUID_CPCMAC=obuidstr.toUInt(NULL,16);
@@ -710,6 +713,10 @@ void MainWindow::dealB2(QStringList Sl_data)
     for(offset=16;offset<24;offset++){
         IssuerIdentifierstr=IssuerIdentifierstr.append(Sl_data.at(offset));
     }
+    QString provider_codestr=IssuerIdentifierstr.left(8);
+    QString tempstr = gbkcodec->toUnicode(QByteArray::fromHex(provider_codestr.toLatin1()));
+    tempstr = utf8codec->fromUnicode(tempstr);
+
     QString ContractTypestr=Sl_data.at(offset++);
     QString ContractVersionstr=Sl_data.at(offset++);
     temp=offset;
@@ -741,7 +748,7 @@ void MainWindow::dealB2(QStringList Sl_data)
     else{
         output_data.append(QString("DeviceType: %1 (车载单元类型: 01H为双片式OBU,02H为单片式OBU,03H为CPC卡,其他值保留)\r\n").arg(b2_cmdstruct.DeviceType));
     }
-    output_data.append(QString("IssuerIdentifier: %1H (发行商代码)\r\n").arg(IssuerIdentifierstr));
+    output_data.append(QString("IssuerIdentifier: %1 (%2发行商代码)\r\n").arg(IssuerIdentifierstr).arg(tempstr));
     output_data.append(QString("ContractType: %1H (OBU 协约类型,CPC 卡时填充00H)\r\n").arg(ContractTypestr));
     output_data.append(QString("ContractVersion: %1H (OBU/CPC 合同版本)\r\n").arg(ContractVersionstr));
     output_data.append(QString("SerialNumber: %1 (OBU 合同序列号/ CPC卡ID号)\r\n").arg(SerialNumberstr));
@@ -1767,11 +1774,16 @@ void MainWindow::dealBST(QStringList* data){
 
 void MainWindow::dealVST(QStringList* data){
     QString ICCInfoStr;
+    QTextCodec *gbkcodec = QTextCodec::codecForName("GBK");
+    QTextCodec *utf8codec = QTextCodec::codecForName("utf-8");
     quint16 datasize=data->size();
     quint8 status=data->at(datasize-4).toUInt(NULL,16);
     if(datasize<51){
         return;
     }
+    QString provider_codestr=data->at(15)+data->at(16)+data->at(17)+data->at(18);
+    QString tempstr = gbkcodec->toUnicode(QByteArray::fromHex(provider_codestr.toLatin1()));
+    tempstr = utf8codec->fromUnicode(tempstr);
     output_data.append("帧类型：INITIALISATION_request（VST）\r\n");
     output_data.append("OBU/CPC MAC: "+data->at(1)+data->at(2)+data->at(3)+data->at(4)+"\r\n");
     output_data.append("MAC控制域: "+data->at(5)+"\r\n");
@@ -1784,7 +1796,7 @@ void MainWindow::dealVST(QStringList* data){
     output_data.append("Did: "+data->at(12)+" (1 号目录位 ETC 应用目录)\r\n");
     output_data.append("Option indicator: "+data->at(13)+"\r\n");
     output_data.append("ParameterSysInfoFile: "+data->at(14)+" ( 携带文件:系统信息文件SysInfoFile)\r\n");
-    output_data.append("服务提供商编码: "+data->at(15)+data->at(16)+data->at(17)+data->at(18)+data->at(19)+data->at(20)+data->at(21)+data->at(22)+"\r\n");
+    output_data.append("服务提供商编码: "+data->at(15)+data->at(16)+data->at(17)+data->at(18)+data->at(19)+data->at(20)+data->at(21)+data->at(22)+" ("+tempstr+")\r\n");
     output_data.append("ContractType: "+data->at(23)+" (协约类型)\r\n");
     output_data.append("ContractVersion: "+data->at(24)+" (协约版本)\r\n");
     output_data.append("ContractSerialNumber: "+data->at(25)+data->at(26)+data->at(27)+data->at(28)+data->at(29)+data->at(30)+data->at(31)+data->at(32)+" (合同序列号)\r\n");
