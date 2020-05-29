@@ -21,6 +21,7 @@ void MainWindow::on_btn_parse_clicked()
 {
     QString Error_Str="";
     QString ErrorTitle="错误警告";
+    QStringList vcString;
     QString input_data = ui->textEdit_in->toPlainText().remove(QRegExp("\\s"));
     QString headstr=input_data.at(0);
     if(input_data.isEmpty()==true) {
@@ -36,10 +37,17 @@ void MainWindow::on_btn_parse_clicked()
     quint8 cmdtype=Sldata.at(0).toUInt(NULL,16);
     output_data.clear();
     ui->textEdit_out->clear();
-    if((input_data.left(5)=="FF FF")&&(input_data.mid(6,5)!="FF FF")){
-        Error_Str.append(dealVC((Sldata.at(8).toInt(NULL,16)),Sldata));
+    if((input_data.left(5)=="FF FF"||input_data.left(5)=="ff ff")&&(input_data.mid(6,5)!="FF FF")){
+        if(Sldata.at(8).toInt(NULL,16)>0xc1){
+            for(qint16 i=8;i<Sldata.length()-2;i++){
+                vcString.append(Sldata.at(i));
+            }
+            Error_Str.append(dealVC((Sldata.at(8).toInt(NULL,16)),vcString));
+        }else {
+            Error_Str.append(dealVC((Sldata.at(8).toInt(NULL,16)),Sldata));
+        }
     }
-    else if(headstr=="C"){
+    else if(headstr=="C"||headstr=="c"){
         Error_Str.append(dealVC(cmdtype,Sldata));
     }
     else if(cmdtype==0x04&&Sldata.at(20)=="5F"&&Sldata.at(21)=="1B"){
@@ -87,7 +95,7 @@ QString MainWindow::dealVC(quint8 cmdtype,QStringList Sldata)
         break;
 
     case 0xc6:
-        if(TextSize==164||TextSize==67||TextSize==159) dealC6(Sldata);
+        if(TextSize==164||TextSize==67||TextSize==159||TextSize==174) dealC6(Sldata);
         else Error_Str="C6 指令长度错误";
         break;
 
@@ -144,7 +152,7 @@ QString MainWindow::dealVC(quint8 cmdtype,QStringList Sldata)
         break;
 
     case 0xb4:
-        if(TextSize==284||TextSize==193||TextSize==74||TextSize==171) dealB4(Sldata);
+        if(TextSize==284||TextSize==193||TextSize==74||TextSize==161) dealB4(Sldata);
         else Error_Str="B4 帧长度错误";
         break;
 
@@ -811,7 +819,7 @@ void MainWindow::dealB4(QStringList Sl_data)
         output_data.append(QString("IssuerInfo: %1 (卡片发行信息（0015 文件） 43 字节+后 7 字节补00H；单片式 OBU：EF07文件前 43字节+后7字节补00H，无数据返回时填充 00H)\r\n").arg(IssuerInfostr));
         output_data.append(QString("LastStation: %1 (出入口信息 双片式OBU为0019文件,单片式OBU为DF01\\EF02文件,无数据返回时填充00H)\r\n").arg(LastStationstr));
     }
-    else if(datasize==74||datasize==171){
+    else if(datasize==74||datasize==161){
         temp=15;
         for(offset=temp;offset<temp+43;offset++){
             cpcLastStationstr=cpcLastStationstr.append(Sl_data.at(offset));
